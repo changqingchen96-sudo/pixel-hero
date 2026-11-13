@@ -4,152 +4,307 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>像素勇者：无限冒险</title>
+<title>像素勇者 V2.0</title>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101a25;color:white;font-family:Arial;overflow:hidden;touch-action:none}
 header{text-align:center;padding:10px;background:#1b2b3c;font-weight:bold}
-#stats{display:flex;justify-content:space-around;padding:9px;font-size:13px;background:#26394b}
-#game{display:block;width:100%;height:calc(100dvh - 145px);background:#427d45;image-rendering:pixelated;touch-action:none}
+#stats{display:flex;justify-content:space-around;flex-wrap:wrap;gap:7px;padding:9px;background:#26394b;font-size:12px}
+#game{display:block;width:100%;height:calc(100dvh - 250px);min-height:300px;background:#49864b;image-rendering:pixelated;touch-action:none}
+#info{display:flex;justify-content:space-around;background:#1b2b3c;padding:7px;font-size:12px}
 #controls{position:fixed;bottom:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:end;padding:0 18px;pointer-events:none}
 #joy{width:112px;height:112px;border-radius:50%;background:#ffffff30;border:3px solid #ffffff70;position:relative;pointer-events:auto;touch-action:none}
 #stick{width:42px;height:42px;border-radius:50%;background:#dce9f5bb;position:absolute;left:32px;top:32px}
 #skill{pointer-events:auto;border:2px solid #ffe58b;background:#a85b20;color:white;border-radius:50%;width:75px;height:75px;font-size:14px;font-weight:bold}
-#tip{text-align:center;font-size:11px;color:#d9e5d8;padding:5px}
+#panel{display:none;position:fixed;inset:8% 5%;background:#172a3c;border:3px solid #e9c66b;border-radius:14px;padding:14px;overflow:auto;z-index:5;text-align:center}
+#panel button{display:block;width:100%;margin:8px 0;padding:12px;background:#355c78;color:white;border:1px solid #9bc7df;border-radius:8px;font-size:15px}
+#close{background:#8b463c!important}
+#tip{text-align:center;background:#101a25;font-size:11px;color:#d9e5d8;padding:5px}
 </style>
 </head>
 <body>
-<header>⚔️ 像素勇者：无限冒险</header>
+<header>⚔️ 像素勇者：无限冒险 V2.0</header>
 <div id="stats">
 <span>❤️ <b id="hp">100</b></span>
+<span>⚔️ <b id="atk">20</b></span>
+<span>🛡️ <b id="def">0</b></span>
 <span>⭐ Lv.<b id="lv">1</b></span>
 <span>经验 <b id="xp">0</b>/<b id="need">50</b></span>
-<span>💰 <b id="gold">0</b></span>
 </div>
 <canvas id="game" width="480" height="600"></canvas>
-<div id="tip">拖动左侧摇杆移动 · 靠近怪物自动攻击</div>
+<div id="info">
+<span>💰 <b id="gold">0</b></span>
+<span>🎯 技能点 <b id="points">0</b></span>
+<span>🗡️ <b id="weapon">木剑</b></span>
+</div>
+<div id="tip">左侧摇杆移动 · 靠近怪物自动攻击 · 右侧释放雷电</div>
 <div id="controls">
 <div id="joy"><div id="stick"></div></div>
-<button id="skill">⚡<br>技能</button>
+<button id="skill">⚡<br>雷电</button>
+</div>
+<div id="panel">
+<h2 id="panelTitle">勇者成长</h2>
+<div id="panelText"></div>
+<div id="buttons"></div>
+<button id="close" onclick="closePanel()">继续冒险</button>
 </div>
 <script>
-const c=document.getElementById("game"),ctx=c.getContext("2d");
-ctx.imageSmoothingEnabled=false;
+const c=document.getElementById("game");
+const ctx=c.getContext("2d");
 const $=id=>document.getElementById(id);
-let player={x:240,y:300,hp:100,max:100,lv:1,xp:0,need:50,gold:0};
-let enemies=[],keys={},joy={x:0,y:0},last=0,attack=0,skill=0,gameOver=false;
+let p={
+ x:240,y:300,hp:100,max:100,atk:20,def:0,
+ lv:1,xp:0,need:50,gold:0,points:0,skillPower:55,
+ weapon:"木剑",attackSpeed:.55
+};
+let enemies=[],drops=[],joy={x:0,y:0},keys={};
+let attack=0,skill=0,gameOver=false,paused=false;
+let effects=[],messages=[],bossLevel=0;
 function spawn(){
- if(enemies.length>=12)return;
- let a=Math.random()*Math.PI*2;
- let d=180+Math.random()*100;
- enemies.push({x:Math.max(18,Math.min(462,player.x+Math.cos(a)*d)),
- y:Math.max(18,Math.min(582,player.y+Math.sin(a)*d)),
- hp:40+player.lv*8,max:40+player.lv*8,hit:0});
+ if(enemies.length>=13)return;
+ let a=Math.random()*Math.PI*2,d=210+Math.random()*60;
+ let boss=p.lv>=5&&Math.floor(p.lv/5)>bossLevel;
+ let hp=boss?240+p.lv*35:40+p.lv*9;
+ let e={
+ x:Math.max(20,Math.min(460,p.x+Math.cos(a)*d)),
+ y:Math.max(20,Math.min(580,p.y+Math.sin(a)*d)),
+ hp,max:hp,boss,hit:0
+ };
+ if(boss){bossLevel=Math.floor(p.lv/5)}
+ enemies.push(e);
 }
 for(let i=0;i<6;i++)spawn();
+
+function message(x,y,t,color="#fff"){
+ messages.push({x,y,t,color,time:1});
+}
+function drop(e){
+ p.xp+=e.boss?100:20;
+ p.gold+=e.boss?100:5+Math.floor(Math.random()*11);
+ message(e.x,e.y-20,e.boss?"BOSS击败！":"+"+ (5+Math.floor(Math.random()*11))+"金币","#ffe66b");
+ if(Math.random()<(e.boss?.9:.22)){
+  let rare=Math.random()<.25;
+  drops.push({
+   x:e.x,y:e.y,type:rare?"神兵":"铁剑",
+   atk:rare?18:8,color:rare?"#e8b8ff":"#d5dce8"
+  });
+ }
+}
+function levelUp(){
+ while(p.xp>=p.need){
+  p.xp-=p.need;p.lv++;
+  p.need=Math.floor(p.need*1.35);
+  p.max+=15;p.atk+=3;p.hp=p.max;p.points++;
+  message(p.x,p.y-35,"升级！Lv."+p.lv,"#ffe66b");
+  openPanel("⭐ 升级！","你获得了1个技能点。选择一项强化！");
+ }
+}
+function openPanel(title,desc){
+ paused=true;
+ $("panel").style.display="block";
+ $("panelTitle").textContent=title;
+ $("panelText").textContent=desc;
+ renderButtons();
+}
+function renderButtons(){
+ $("buttons").innerHTML="";
+ const options=[
+ ["⚔️ 攻击强化","增加攻击力 +8",()=>p.atk+=8],
+ ["🛡️ 防御强化","减少受到的伤害 +3",()=>p.def+=3],
+ ["❤️ 生命强化","最大生命值 +30",()=>{p.max+=30;p.hp=p.max}],
+ ["⚡ 雷电强化","雷电伤害 +35",()=>p.skillPower+=35]
+ ];
+ options.forEach(([name,desc,fn])=>{
+  let b=document.createElement("button");
+  b.textContent=name+" · "+desc;
+  b.onclick=()=>{
+   if(p.points<=0)return;
+   fn();p.points--;
+   refresh();
+   $("panel").style.display="none";
+   paused=false;
+  };
+  $("buttons").appendChild(b);
+ });
+ if(p.points<=0){
+  $("buttons").innerHTML="<p>当前没有技能点</p>";
+ }
+}
+function closePanel(){
+ $("panel").style.display="none";
+ paused=false;
+}
+function refresh(){
+ $("hp").textContent=Math.ceil(p.hp)+"/"+p.max;
+ $("atk").textContent=p.atk;
+ $("def").textContent=p.def;
+ $("lv").textContent=p.lv;
+ $("xp").textContent=p.xp;
+ $("need").textContent=p.need;
+ $("gold").textContent=p.gold;
+ $("points").textContent=p.points;
+ $("weapon").textContent=p.weapon;
+}
 function update(dt){
- if(gameOver)return;
+ if(paused||gameOver)return;
  let dx=joy.x,dy=joy.y;
- if(keys.ArrowLeft||keys.a)dx-=1;
- if(keys.ArrowRight||keys.d)dx+=1;
- if(keys.ArrowUp||keys.w)dy-=1;
- if(keys.ArrowDown||keys.s)dy+=1;
+ if(keys.ArrowLeft||keys.a)dx--;
+ if(keys.ArrowRight||keys.d)dx++;
+ if(keys.ArrowUp||keys.w)dy--;
+ if(keys.ArrowDown||keys.s)dy++;
  let len=Math.hypot(dx,dy);
- if(len>0){player.x+=dx/len*145*dt;player.y+=dy/len*145*dt}
- player.x=Math.max(12,Math.min(468,player.x));
- player.y=Math.max(12,Math.min(588,player.y));
+ if(len>0){
+  p.x+=dx/len*145*dt;p.y+=dy/len*145*dt;
+ }
+ p.x=Math.max(12,Math.min(468,p.x));
+ p.y=Math.max(12,Math.min(588,p.y));
  attack-=dt;skill-=dt;
  let target=null,dist=155;
  for(let e of enemies){
-  let d=Math.hypot(e.x-player.x,e.y-player.y);
+  let d=Math.hypot(e.x-p.x,e.y-p.y);
   if(d<dist){dist=d;target=e}
-  if(d>23){e.x+=(player.x-e.x)/d*38*dt;e.y+=(player.y-e.y)/d*38*dt}
-  else {player.hp-=5*dt}
+  if(d>25){
+   e.x+=(p.x-e.x)/d*(e.boss?28:38)*dt;
+   e.y+=(p.y-e.y)/d*(e.boss?28:38)*dt;
+  }else{
+   p.hp-=Math.max(1,(e.boss?14:5)-p.def)*dt;
+  }
  }
  if(target&&attack<=0){
-  target.hp-=20;target.hit=.12;attack=.55;
+  let critical=Math.random()<.18;
+  let damage=p.atk*(critical?2:1);
+  target.hp-=damage;target.hit=.15;
+  attack=p.attackSpeed;
+  message(target.x,target.y-20,critical?"暴击! "+damage:"-"+damage,critical?"#ffdf54":"#fff");
+  effects.push({x:target.x,y:target.y,time:.2});
  }
  enemies=enemies.filter(e=>{
-  if(e.hp<=0){player.xp+=20;player.gold+=5;return false}
+  if(e.hp<=0){drop(e);return false}
   return true;
  });
- while(player.xp>=player.need){
-  player.xp-=player.need;player.lv++;player.need=Math.floor(player.need*1.35);
-  player.max+=15;player.hp=player.max;
- }
- if(player.hp<=0){player.hp=0;gameOver=true}
+ levelUp();
+ drops=drops.filter(d=>{
+  if(Math.hypot(d.x-p.x,d.y-p.y)<25){
+   p.atk+=d.atk;p.weapon=d.type;
+   message(p.x,p.y-35,"获得 "+d.type+"！","#e8b8ff");
+   return false;
+  }
+  return true;
+ });
  if(Math.random()<dt*.8)spawn();
+ if(p.hp<=0){p.hp=0;gameOver=true}
+ effects=effects.filter(e=>(e.time-=dt)>0);
+ messages=messages.filter(m=>(m.time-=dt)>0);
+ refresh();
 }
 function draw(){
  ctx.fillStyle="#49864b";ctx.fillRect(0,0,480,600);
  for(let y=0;y<600;y+=32)for(let x=0;x<480;x+=32){
   ctx.fillStyle=((x+y)/32)%2?"#508f50":"#478347";
   ctx.fillRect(x,y,32,32);
-  if((x*7+y*3)%11===0){ctx.fillStyle="#78aa58";ctx.fillRect(x+8,y+9,4,4)}
+  if((x*7+y*3)%11===0){
+   ctx.fillStyle="#78aa58";ctx.fillRect(x+8,y+9,4,4);
+  }
  }
- // 小路
  ctx.fillStyle="#9a8558";ctx.fillRect(0,430,480,42);
+ // 地面装备
+ for(let d of drops){
+  ctx.fillStyle=d.color;ctx.fillRect(d.x-7,d.y-7,14,14);
+  ctx.fillStyle="#fff";ctx.font="10px Arial";ctx.fillText("装备",d.x-12,d.y-12);
+ }
  // 怪物
  for(let e of enemies){
-  ctx.fillStyle="#182b22";ctx.fillRect(e.x-11,e.y-9,22,19);
-  ctx.fillStyle=e.hit>0?"#fff":"#7bdc55";
-  ctx.fillRect(e.x-10,e.y-11,20,18);
-  ctx.fillStyle="#17251a";ctx.fillRect(e.x-5,e.y-5,3,3);ctx.fillRect(e.x+4,e.y-5,3,3);
-  ctx.fillStyle="#302c2c";ctx.fillRect(e.x-12,e.y-19,24,4);
-  ctx.fillStyle="#e64e45";ctx.fillRect(e.x-12,e.y-19,24*Math.max(0,e.hp/e.max),4);
-  e.hit=Math.max(0,e.hit-.02);
+  ctx.fillStyle="#182b22";
+  ctx.fillRect(e.x-12,e.y-10,24,21);
+  ctx.fillStyle=e.hit>0?"#fff":e.boss?"#a044d9":"#7bdc55";
+  ctx.fillRect(e.x-11,e.y-12,22,20);
+  ctx.fillStyle="#17251a";
+  ctx.fillRect(e.x-5,e.y-5,3,3);
+  ctx.fillRect(e.x+4,e.y-5,3,3);
+  ctx.fillStyle="#222";
+  ctx.fillRect(e.x-16,e.y-23,32,5);
+  ctx.fillStyle="#e64e45";
+  ctx.fillRect(e.x-16,e.y-23,32*Math.max(0,e.hp/e.max),5);
+  if(e.boss){
+   ctx.fillStyle="#ffe66b";ctx.font="12px Arial";
+   ctx.fillText("BOSS",e.x-15,e.y-29);
+  }
  }
  // 勇者
- ctx.fillStyle="#1d263e";ctx.fillRect(player.x-10,player.y-8,20,21);
- ctx.fillStyle="#e9c18b";ctx.fillRect(player.x-7,player.y-16,14,12);
- ctx.fillStyle="#3878d8";ctx.fillRect(player.x-9,player.y-4,18,10);
- ctx.fillStyle="#f4e9ca";ctx.fillRect(player.x-5,player.y-14,3,3);ctx.fillRect(player.x+3,player.y-14,3,3);
- ctx.fillStyle="#fff";ctx.font="12px Arial";ctx.fillText("勇者",player.x-12,player.y-23);
+ ctx.fillStyle="#1d263e";ctx.fillRect(p.x-10,p.y-8,20,21);
+ ctx.fillStyle="#e9c18b";ctx.fillRect(p.x-7,p.y-16,14,12);
+ ctx.fillStyle="#3878d8";ctx.fillRect(p.x-9,p.y-4,18,10);
+ ctx.fillStyle="#f4e9ca";
+ ctx.fillRect(p.x-5,p.y-14,3,3);ctx.fillRect(p.x+3,p.y-14,3,3);
+ ctx.fillStyle="#fff";ctx.font="12px Arial";
+ ctx.fillText("勇者",p.x-12,p.y-23);
+ for(let e of effects){
+  ctx.strokeStyle="#ffe66b";ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(e.x,e.y,20*(1-e.time/.2),0,Math.PI*2);ctx.stroke();
+ }
+ for(let m of messages){
+  ctx.fillStyle=m.color;ctx.font="bold 14px Arial";
+  ctx.fillText(m.t,m.x,m.y-m.time*22);
+ }
  if(gameOver){
   ctx.fillStyle="#000b";ctx.fillRect(0,0,480,600);
-  ctx.fillStyle="white";ctx.textAlign="center";ctx.font="30px Arial";
-  ctx.fillText("冒险结束",240,270);
-  ctx.font="18px Arial";ctx.fillText("点击屏幕重新开始",240,315);ctx.textAlign="left";
+  ctx.fillStyle="white";ctx.textAlign="center";
+  ctx.font="30px Arial";ctx.fillText("冒险结束",240,270);
+  ctx.font="18px Arial";ctx.fillText("点击屏幕重新开始",240,315);
+  ctx.textAlign="left";
  }
- $("hp").textContent=Math.ceil(player.hp);
- $("lv").textContent=player.lv;
- $("xp").textContent=player.xp;
- $("need").textContent=player.need;
- $("gold").textContent=player.gold;
 }
 function loop(t){
- let dt=Math.min((t-last)/1000||0,.04);last=t;
- update(dt);draw();requestAnimationFrame(loop);
+ let dt=Math.min((t-(loop.last||t))/1000,.04);
+ loop.last=t;update(dt);draw();requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 const joyEl=$("joy"),stick=$("stick");
 let active=false;
 function moveJoy(e){
  let r=joyEl.getBoundingClientRect();
- let x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);
+ let x=e.clientX-(r.left+r.width/2);
+ let y=e.clientY-(r.top+r.height/2);
  let d=Math.hypot(x,y),m=34;
  if(d>m){x=x/d*m;y=y/d*m}
  joy.x=x/m;joy.y=y/m;
  stick.style.left=(32+x)+"px";stick.style.top=(32+y)+"px";
 }
-joyEl.addEventListener("pointerdown",e=>{active=true;joyEl.setPointerCapture(e.pointerId);moveJoy(e)});
+joyEl.addEventListener("pointerdown",e=>{
+ active=true;joyEl.setPointerCapture(e.pointerId);moveJoy(e);
+});
 joyEl.addEventListener("pointermove",e=>{if(active)moveJoy(e)});
-function stopJoy(){active=false;joy.x=joy.y=0;stick.style.left="32px";stick.style.top="32px"}
+function stopJoy(){
+ active=false;joy.x=joy.y=0;
+ stick.style.left="32px";stick.style.top="32px";
+}
 joyEl.addEventListener("pointerup",stopJoy);
 joyEl.addEventListener("pointercancel",stopJoy);
-$("skill").addEventListener("click",()=>{
- if(skill>0||gameOver)return;
+$("skill").onclick=()=>{
+ if(skill>0||paused||gameOver)return;
  skill=4;
- for(let e of enemies)if(Math.hypot(e.x-player.x,e.y-player.y)<115)e.hp-=55;
-});
+ enemies.forEach(e=>{
+  if(Math.hypot(e.x-p.x,e.y-p.y)<125){
+   e.hp-=p.skillPower;
+   message(e.x,e.y-30,"⚡-"+p.skillPower,"#ffe66b");
+  }
+ });
+ effects.push({x:p.x,y:p.y,time:.2});
+};
 c.addEventListener("pointerdown",()=>{
  if(gameOver){
-  player={x:240,y:300,hp:100,max:100,lv:1,xp:0,need:50,gold:0};
-  enemies=[];for(let i=0;i<6;i++)spawn();gameOver=false;
+  p={x:240,y:300,hp:100,max:100,atk:20,def:0,
+  lv:1,xp:0,need:50,gold:0,points:0,skillPower:55,
+  weapon:"木剑",attackSpeed:.55};
+  enemies=[];drops=[];effects=[];messages=[];
+  bossLevel=0;gameOver=false;
+  for(let i=0;i<6;i++)spawn();
+  refresh();
  }
 });
 window.addEventListener("keydown",e=>keys[e.key]=true);
 window.addEventListener("keyup",e=>keys[e.key]=false);
+refresh();
 </script>
 </body>
 </html>
