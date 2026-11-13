@@ -4,307 +4,459 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>像素勇者 V2.0</title>
+<title>像素勇者：无限冒险 V3.0</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101a25;color:white;font-family:Arial;overflow:hidden;touch-action:none}
-header{text-align:center;padding:10px;background:#1b2b3c;font-weight:bold}
-#stats{display:flex;justify-content:space-around;flex-wrap:wrap;gap:7px;padding:9px;background:#26394b;font-size:12px}
-#game{display:block;width:100%;height:calc(100dvh - 250px);min-height:300px;background:#49864b;image-rendering:pixelated;touch-action:none}
-#info{display:flex;justify-content:space-around;background:#1b2b3c;padding:7px;font-size:12px}
-#controls{position:fixed;bottom:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:end;padding:0 18px;pointer-events:none}
-#joy{width:112px;height:112px;border-radius:50%;background:#ffffff30;border:3px solid #ffffff70;position:relative;pointer-events:auto;touch-action:none}
-#stick{width:42px;height:42px;border-radius:50%;background:#dce9f5bb;position:absolute;left:32px;top:32px}
-#skill{pointer-events:auto;border:2px solid #ffe58b;background:#a85b20;color:white;border-radius:50%;width:75px;height:75px;font-size:14px;font-weight:bold}
-#panel{display:none;position:fixed;inset:8% 5%;background:#172a3c;border:3px solid #e9c66b;border-radius:14px;padding:14px;overflow:auto;z-index:5;text-align:center}
-#panel button{display:block;width:100%;margin:8px 0;padding:12px;background:#355c78;color:white;border:1px solid #9bc7df;border-radius:8px;font-size:15px}
-#close{background:#8b463c!important}
-#tip{text-align:center;background:#101a25;font-size:11px;color:#d9e5d8;padding:5px}
+body{margin:0;background:#17251d;color:white;font-family:Arial,"Microsoft YaHei",sans-serif;text-align:center;overflow-x:hidden}
+header{padding:12px;background:#263e30}
+h2{margin:3px;color:#ffe58a;font-size:20px}
+#stats{font-size:13px;line-height:2}
+#game{display:block;width:100%;max-width:700px;height:55vh;min-height:300px;margin:auto;background:#477c42;touch-action:none}
+.controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;padding:10px}
+button{border:0;border-radius:9px;padding:11px 15px;background:#d99b42;color:#231b10;font-weight:bold;font-size:14px}
+button:active{transform:scale(.95)}
+#stick{width:120px;height:120px;border-radius:50%;background:#344d3d;border:3px solid #9ab98a;position:relative;margin:8px auto;touch-action:none}
+#knob{width:45px;height:45px;border-radius:50%;background:#e9d58d;position:absolute;left:35px;top:35px}
+#panel{display:none;background:#263e30;border:2px solid #d9b65f;border-radius:12px;padding:14px;margin:5px auto;max-width:500px;width:95%}
+#panel h3{color:#ffe58a}
+.item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px;border-bottom:1px solid #60785e;text-align:left}
+.item button{padding:8px}
+small{color:#c8d8c3}
 </style>
 </head>
 <body>
-<header>⚔️ 像素勇者：无限冒险 V2.0</header>
-<div id="stats">
-<span>❤️ <b id="hp">100</b></span>
-<span>⚔️ <b id="atk">20</b></span>
-<span>🛡️ <b id="def">0</b></span>
-<span>⭐ Lv.<b id="lv">1</b></span>
-<span>经验 <b id="xp">0</b>/<b id="need">50</b></span>
-</div>
-<canvas id="game" width="480" height="600"></canvas>
-<div id="info">
-<span>💰 <b id="gold">0</b></span>
-<span>🎯 技能点 <b id="points">0</b></span>
-<span>🗡️ <b id="weapon">木剑</b></span>
-</div>
-<div id="tip">左侧摇杆移动 · 靠近怪物自动攻击 · 右侧释放雷电</div>
-<div id="controls">
-<div id="joy"><div id="stick"></div></div>
-<button id="skill">⚡<br>雷电</button>
-</div>
-<div id="panel">
-<h2 id="panelTitle">勇者成长</h2>
-<div id="panelText"></div>
-<div id="buttons"></div>
-<button id="close" onclick="closePanel()">继续冒险</button>
-</div>
-<script>
-const c=document.getElementById("game");
-const ctx=c.getContext("2d");
-const $=id=>document.getElementById(id);
-let p={
- x:240,y:300,hp:100,max:100,atk:20,def:0,
- lv:1,xp:0,need:50,gold:0,points:0,skillPower:55,
- weapon:"木剑",attackSpeed:.55
-};
-let enemies=[],drops=[],joy={x:0,y:0},keys={};
-let attack=0,skill=0,gameOver=false,paused=false;
-let effects=[],messages=[],bossLevel=0;
-function spawn(){
- if(enemies.length>=13)return;
- let a=Math.random()*Math.PI*2,d=210+Math.random()*60;
- let boss=p.lv>=5&&Math.floor(p.lv/5)>bossLevel;
- let hp=boss?240+p.lv*35:40+p.lv*9;
- let e={
- x:Math.max(20,Math.min(460,p.x+Math.cos(a)*d)),
- y:Math.max(20,Math.min(580,p.y+Math.sin(a)*d)),
- hp,max:hp,boss,hit:0
- };
- if(boss){bossLevel=Math.floor(p.lv/5)}
- enemies.push(e);
-}
-for(let i=0;i<6;i++)spawn();
+<header>
+<h2>⚔️ 像素勇者：无限冒险 V3.0</h2>
+<div id="stats">等级 1 | 生命 100 | 金币 0 | 经验 0</div>
+<div id="info">地图：绿色森林</div>
+</header>
 
-function message(x,y,t,color="#fff"){
- messages.push({x,y,t,color,time:1});
+<canvas id="game"></canvas>
+
+<div class="controls">
+<button onclick="openPanel('shop')">🏪 商店</button>
+<button onclick="openPanel('bag')">🎒 背包</button>
+<button onclick="openPanel('maps')">🗺️ 地图</button>
+<button onclick="usePotion()">❤️ 药水</button>
+<button onclick="lightning()">⚡ 雷电</button>
+<button onclick="saveGame()">💾 存档</button>
+</div>
+
+<div id="stick"><div id="knob"></div></div>
+
+<div id="panel"></div>
+
+<div class="controls">
+<button onclick="closePanel()">关闭菜单</button>
+<button onclick="resetGame()">重新开始</button>
+</div>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const panel=document.getElementById("panel");
+
+let W=700,H=420;
+function resize(){
+ W=canvas.width=700;
+ H=canvas.height=Math.max(300,Math.min(500,innerHeight*.55));
 }
-function drop(e){
- p.xp+=e.boss?100:20;
- p.gold+=e.boss?100:5+Math.floor(Math.random()*11);
- message(e.x,e.y-20,e.boss?"BOSS击败！":"+"+ (5+Math.floor(Math.random()*11))+"金币","#ffe66b");
- if(Math.random()<(e.boss?.9:.22)){
-  let rare=Math.random()<.25;
-  drops.push({
-   x:e.x,y:e.y,type:rare?"神兵":"铁剑",
-   atk:rare?18:8,color:rare?"#e8b8ff":"#d5dce8"
-  });
+resize();
+
+const maps=[
+ {name:"绿色森林",bg:"#477c42",enemy:"史莱姆",hp:30,exp:10,gold:5},
+ {name:"黑暗洞穴",bg:"#454454",enemy:"骷髅",hp:65,exp:22,gold:12},
+ {name:"烈焰沙漠",bg:"#b77b39",enemy:"狼人",hp:110,exp:40,gold:25}
+];
+
+let player={
+ x:W/2,y:H/2,lv:1,hp:100,maxHp:100,
+ atk:12,def:0,exp:0,need:30,gold:0,
+ points:0,potions:2,weapon:0,map:0
+};
+
+let enemies=[];
+let drops=[];
+let inventory=["初始木剑"];
+let bossCount=0;
+let lastAttack=0,lastSkill=0;
+let moveX=0,moveY=0;
+let paused=false,gameOver=false;
+let messageText="",messageTime=0;
+
+function message(t){
+ messageText=t;
+ messageTime=Date.now()+1800;
+}
+
+function spawnEnemy(boss=false){
+ let m=maps[player.map];
+ let e={
+ x:Math.random()*(W-100)+50,
+ y:Math.random()*(H-100)+50,
+ hp:boss?m.hp*6:m.hp+player.lv*5,
+ maxHp:boss?m.hp*6:m.hp+player.lv*5,
+ boss:boss,
+ name:boss?"🔥地图BOSS":m.enemy,
+ atk:boss?15:5+player.lv,
+ speed:boss?0.65:0.45
+ };
+ enemies.push(e);
+ if(boss)message("⚠️ BOSS出现了！");
+}
+
+function initEnemies(){
+ enemies=[];
+ for(let i=0;i<5;i++)spawnEnemy();
+ if(bossCount<Math.floor(player.lv/5)){
+ bossCount=Math.floor(player.lv/5);
+ spawnEnemy(true);
  }
 }
+
+function saveGame(){
+ const data={
+ player:player,inventory:inventory,bossCount:bossCount
+ };
+ localStorage.setItem("pixelHeroV3",JSON.stringify(data));
+ message("💾 存档成功！");
+}
+
+function loadGame(){
+ try{
+  let data=JSON.parse(localStorage.getItem("pixelHeroV3"));
+  if(data&&data.player){
+   player=Object.assign(player,data.player);
+   inventory=data.inventory||inventory;
+   bossCount=data.bossCount||0;
+   message("欢迎回来，勇者！");
+  }
+ }catch(e){}
+}
+
+function autoSave(){
+ saveGame();
+}
+
 function levelUp(){
- while(p.xp>=p.need){
-  p.xp-=p.need;p.lv++;
-  p.need=Math.floor(p.need*1.35);
-  p.max+=15;p.atk+=3;p.hp=p.max;p.points++;
-  message(p.x,p.y-35,"升级！Lv."+p.lv,"#ffe66b");
-  openPanel("⭐ 升级！","你获得了1个技能点。选择一项强化！");
+ while(player.exp>=player.need){
+  player.exp-=player.need;
+  player.lv++;
+  player.need=Math.floor(player.need*1.35);
+  player.maxHp+=15;
+  player.hp=player.maxHp;
+  player.atk+=2;
+  player.points++;
+  message("🎉 升级！获得1技能点");
+ }
+ if(Math.floor(player.lv/5)>bossCount){
+  bossCount=Math.floor(player.lv/5);
+  spawnEnemy(true);
  }
 }
-function openPanel(title,desc){
- paused=true;
- $("panel").style.display="block";
- $("panelTitle").textContent=title;
- $("panelText").textContent=desc;
- renderButtons();
-}
-function renderButtons(){
- $("buttons").innerHTML="";
- const options=[
- ["⚔️ 攻击强化","增加攻击力 +8",()=>p.atk+=8],
- ["🛡️ 防御强化","减少受到的伤害 +3",()=>p.def+=3],
- ["❤️ 生命强化","最大生命值 +30",()=>{p.max+=30;p.hp=p.max}],
- ["⚡ 雷电强化","雷电伤害 +35",()=>p.skillPower+=35]
- ];
- options.forEach(([name,desc,fn])=>{
-  let b=document.createElement("button");
-  b.textContent=name+" · "+desc;
-  b.onclick=()=>{
-   if(p.points<=0)return;
-   fn();p.points--;
-   refresh();
-   $("panel").style.display="none";
-   paused=false;
-  };
-  $("buttons").appendChild(b);
- });
- if(p.points<=0){
-  $("buttons").innerHTML="<p>当前没有技能点</p>";
- }
-}
-function closePanel(){
- $("panel").style.display="none";
- paused=false;
-}
-function refresh(){
- $("hp").textContent=Math.ceil(p.hp)+"/"+p.max;
- $("atk").textContent=p.atk;
- $("def").textContent=p.def;
- $("lv").textContent=p.lv;
- $("xp").textContent=p.xp;
- $("need").textContent=p.need;
- $("gold").textContent=p.gold;
- $("points").textContent=p.points;
- $("weapon").textContent=p.weapon;
-}
-function update(dt){
- if(paused||gameOver)return;
- let dx=joy.x,dy=joy.y;
- if(keys.ArrowLeft||keys.a)dx--;
- if(keys.ArrowRight||keys.d)dx++;
- if(keys.ArrowUp||keys.w)dy--;
- if(keys.ArrowDown||keys.s)dy++;
- let len=Math.hypot(dx,dy);
- if(len>0){
-  p.x+=dx/len*145*dt;p.y+=dy/len*145*dt;
- }
- p.x=Math.max(12,Math.min(468,p.x));
- p.y=Math.max(12,Math.min(588,p.y));
- attack-=dt;skill-=dt;
- let target=null,dist=155;
+
+function attack(){
+ let now=Date.now();
+ if(now-lastAttack<600)return;
+ let target=null,dist=Infinity;
  for(let e of enemies){
-  let d=Math.hypot(e.x-p.x,e.y-p.y);
-  if(d<dist){dist=d;target=e}
-  if(d>25){
-   e.x+=(p.x-e.x)/d*(e.boss?28:38)*dt;
-   e.y+=(p.y-e.y)/d*(e.boss?28:38)*dt;
-  }else{
-   p.hp-=Math.max(1,(e.boss?14:5)-p.def)*dt;
+  let d=Math.hypot(e.x-player.x,e.y-player.y);
+  if(d<dist){dist=d;target=e;}
+ }
+ if(target&&dist<90){
+  lastAttack=now;
+  let damage=player.atk+Math.floor(Math.random()*5);
+  if(Math.random()<.15)damage*=2;
+  target.hp-=damage;
+  if(target.hp<=0){
+   player.exp+=target.boss?100:maps[player.map].exp;
+   player.gold+=target.boss?100:maps[player.map].gold;
+   if(Math.random()<.25){
+    drops.push({x:target.x,y:target.y,name:"强化装备",type:"weapon"});
+   }
+   enemies=enemies.filter(e=>e!==target);
+   message("击败 "+target.name+"！");
+   levelUp();
+   if(enemies.length<5)spawnEnemy();
   }
  }
- if(target&&attack<=0){
-  let critical=Math.random()<.18;
-  let damage=p.atk*(critical?2:1);
-  target.hp-=damage;target.hit=.15;
-  attack=p.attackSpeed;
-  message(target.x,target.y-20,critical?"暴击! "+damage:"-"+damage,critical?"#ffdf54":"#fff");
-  effects.push({x:target.x,y:target.y,time:.2});
+}
+
+function lightning(){
+ let now=Date.now();
+ if(now-lastSkill<4000){
+  message("雷电技能冷却中！");
+  return;
  }
- enemies=enemies.filter(e=>{
-  if(e.hp<=0){drop(e);return false}
-  return true;
+ lastSkill=now;
+ let hit=0;
+ enemies.forEach(e=>{
+  if(Math.hypot(e.x-player.x,e.y-player.y)<180){
+   e.hp-=player.atk*3;
+   hit++;
+  }
  });
- levelUp();
- drops=drops.filter(d=>{
-  if(Math.hypot(d.x-p.x,d.y-p.y)<25){
-   p.atk+=d.atk;p.weapon=d.type;
-   message(p.x,p.y-35,"获得 "+d.type+"！","#e8b8ff");
+ enemies=enemies.filter(e=>{
+  if(e.hp<=0){
+   player.exp+=e.boss?100:maps[player.map].exp;
+   player.gold+=e.boss?100:maps[player.map].gold;
    return false;
   }
   return true;
  });
- if(Math.random()<dt*.8)spawn();
- if(p.hp<=0){p.hp=0;gameOver=true}
- effects=effects.filter(e=>(e.time-=dt)>0);
- messages=messages.filter(m=>(m.time-=dt)>0);
- refresh();
+ levelUp();
+ message("⚡ 雷电击中 "+hit+" 个敌人！");
 }
+
+function usePotion(){
+ if(player.potions<=0){
+  message("药水不足，请去商店购买！");
+  return;
+ }
+ if(player.hp>=player.maxHp){
+  message("生命值已经满了！");
+  return;
+ }
+ player.potions--;
+ player.hp=Math.min(player.maxHp,player.hp+50);
+ message("恢复50点生命！");
+}
+
+function openPanel(type){
+ paused=true;
+ panel.style.display="block";
+ if(type==="shop")showShop();
+ if(type==="bag")showBag();
+ if(type==="maps")showMaps();
+}
+
+function closePanel(){
+ panel.style.display="none";
+ paused=false;
+}
+
+function showShop(){
+ panel.innerHTML=`
+ <h3>🏪 勇者商店</h3>
+ <div class="item"><span>⚔️ 铁剑（攻击+8）<br><small>价格：50金币</small></span><button onclick="buy('sword')">购买</button></div>
+ <div class="item"><span>❤️ 生命药水<br><small>价格：15金币</small></span><button onclick="buy('potion')">购买</button></div>
+ <div class="item"><span>🛡️ 防御护甲（防御+3）<br><small>价格：60金币</small></span><button onclick="buy('armor')">购买</button></div>
+ <p>当前金币：${player.gold}</p>`;
+}
+
+function buy(type){
+ if(type==="sword"&&player.gold>=50){
+  player.gold-=50;player.atk+=8;player.weapon++;
+  inventory.push("铁剑");
+  message("购买铁剑成功！");
+ }else if(type==="potion"&&player.gold>=15){
+  player.gold-=15;player.potions++;
+  inventory.push("生命药水");
+  message("药水购买成功！");
+ }else if(type==="armor"&&player.gold>=60){
+  player.gold-=60;player.def+=3;
+  inventory.push("防御护甲");
+  message("护甲购买成功！");
+ }else{
+  message("金币不足！");
+ }
+ showShop();
+ updateStats();
+}
+
+function showBag(){
+ panel.innerHTML=`<h3>🎒 我的背包</h3>
+ <p>金币：${player.gold} | 药水：${player.potions}</p>
+ <p>攻击力：${player.atk} | 防御力：${player.def}</p>
+ <p>装备列表：</p>
+ ${inventory.map(x=>`<div class="item">${x}</div>`).join("")}
+ <p>技能点：${player.points}</p>
+ <button onclick="upgrade('atk')">攻击 +1</button>
+ <button onclick="upgrade('def')">防御 +1</button>
+ <button onclick="upgrade('hp')">生命 +10</button>`;
+}
+
+function upgrade(type){
+ if(player.points<=0){message("技能点不足！");return;}
+ player.points--;
+ if(type==="atk")player.atk++;
+ if(type==="def")player.def++;
+ if(type==="hp"){player.maxHp+=10;player.hp+=10;}
+ showBag();
+ updateStats();
+}
+
+function showMaps(){
+ panel.innerHTML=`<h3>🗺️ 冒险地图</h3>
+ ${maps.map((m,i)=>`<div class="item">
+ <span>${m.name}<br><small>怪物：${m.enemy}</small></span>
+ <button onclick="changeMap(${i})">${player.map===i?"当前地图":"前往"}</button>
+ </div>`).join("")}`;
+}
+
+function changeMap(i){
+ if(i>player.map&&player.lv<i*3+1){
+  message("等级不足，先升级！");
+  return;
+ }
+ player.map=i;
+ player.x=W/2;player.y=H/2;
+ initEnemies();
+ document.getElementById("info").textContent="地图："+maps[i].name;
+ closePanel();
+ message("进入 "+maps[i].name);
+}
+
+function resetGame(){
+ if(!confirm("确定删除存档并重新开始吗？"))return;
+ localStorage.removeItem("pixelHeroV3");
+ location.reload();
+}
+
+function updateStats(){
+ document.getElementById("stats").textContent=
+ `等级 ${player.lv} | ❤️ ${Math.floor(player.hp)}/${player.maxHp} | 金币 ${player.gold} | 经验 ${player.exp}/${player.need} | 技能点 ${player.points}`;
+ document.getElementById("info").textContent="地图："+maps[player.map].name;
+}
+
 function draw(){
- ctx.fillStyle="#49864b";ctx.fillRect(0,0,480,600);
- for(let y=0;y<600;y+=32)for(let x=0;x<480;x+=32){
-  ctx.fillStyle=((x+y)/32)%2?"#508f50":"#478347";
-  ctx.fillRect(x,y,32,32);
-  if((x*7+y*3)%11===0){
-   ctx.fillStyle="#78aa58";ctx.fillRect(x+8,y+9,4,4);
-  }
+ ctx.fillStyle=maps[player.map].bg;
+ ctx.fillRect(0,0,W,H);
+
+ // 地面像素装饰
+ for(let i=0;i<35;i++){
+  let x=(i*97)%W,y=(i*61)%H;
+  ctx.fillStyle=player.map===0?"#5b914c":player.map===1?"#555365":"#d29b53";
+  ctx.fillRect(x,y,5,5);
  }
- ctx.fillStyle="#9a8558";ctx.fillRect(0,430,480,42);
- // 地面装备
- for(let d of drops){
-  ctx.fillStyle=d.color;ctx.fillRect(d.x-7,d.y-7,14,14);
-  ctx.fillStyle="#fff";ctx.font="10px Arial";ctx.fillText("装备",d.x-12,d.y-12);
- }
+
+ // 掉落装备
+ drops.forEach(d=>{
+  ctx.fillStyle="#ffe36b";
+  ctx.fillRect(d.x-7,d.y-7,14,14);
+  ctx.fillStyle="white";
+  ctx.font="11px Arial";
+  ctx.fillText("装备",d.x-13,d.y-13);
+ });
+
  // 怪物
- for(let e of enemies){
-  ctx.fillStyle="#182b22";
-  ctx.fillRect(e.x-12,e.y-10,24,21);
-  ctx.fillStyle=e.hit>0?"#fff":e.boss?"#a044d9":"#7bdc55";
-  ctx.fillRect(e.x-11,e.y-12,22,20);
-  ctx.fillStyle="#17251a";
-  ctx.fillRect(e.x-5,e.y-5,3,3);
-  ctx.fillRect(e.x+4,e.y-5,3,3);
+ enemies.forEach(e=>{
+  ctx.fillStyle=e.boss?"#a31f37":player.map===1?"#d0d0d0":player.map===2?"#a45b36":"#4be0a1";
+  ctx.fillRect(e.x-13,e.y-13,e.boss?30:24,e.boss?30:24);
+  ctx.fillStyle="white";
+  ctx.font="12px Arial";
+  ctx.fillText(e.boss?"BOSS":e.name,e.x-20,e.y-20);
   ctx.fillStyle="#222";
-  ctx.fillRect(e.x-16,e.y-23,32,5);
-  ctx.fillStyle="#e64e45";
-  ctx.fillRect(e.x-16,e.y-23,32*Math.max(0,e.hp/e.max),5);
-  if(e.boss){
-   ctx.fillStyle="#ffe66b";ctx.font="12px Arial";
-   ctx.fillText("BOSS",e.x-15,e.y-29);
-  }
- }
+  ctx.fillRect(e.x-17,e.y-29,35,5);
+  ctx.fillStyle="#ed4444";
+  ctx.fillRect(e.x-17,e.y-29,35*Math.max(0,e.hp/e.maxHp),5);
+ });
+
  // 勇者
- ctx.fillStyle="#1d263e";ctx.fillRect(p.x-10,p.y-8,20,21);
- ctx.fillStyle="#e9c18b";ctx.fillRect(p.x-7,p.y-16,14,12);
- ctx.fillStyle="#3878d8";ctx.fillRect(p.x-9,p.y-4,18,10);
- ctx.fillStyle="#f4e9ca";
- ctx.fillRect(p.x-5,p.y-14,3,3);ctx.fillRect(p.x+3,p.y-14,3,3);
- ctx.fillStyle="#fff";ctx.font="12px Arial";
- ctx.fillText("勇者",p.x-12,p.y-23);
- for(let e of effects){
-  ctx.strokeStyle="#ffe66b";ctx.lineWidth=3;
-  ctx.beginPath();ctx.arc(e.x,e.y,20*(1-e.time/.2),0,Math.PI*2);ctx.stroke();
- }
- for(let m of messages){
-  ctx.fillStyle=m.color;ctx.font="bold 14px Arial";
-  ctx.fillText(m.t,m.x,m.y-m.time*22);
- }
- if(gameOver){
-  ctx.fillStyle="#000b";ctx.fillRect(0,0,480,600);
-  ctx.fillStyle="white";ctx.textAlign="center";
-  ctx.font="30px Arial";ctx.fillText("冒险结束",240,270);
-  ctx.font="18px Arial";ctx.fillText("点击屏幕重新开始",240,315);
+ ctx.fillStyle="#f4d17a";
+ ctx.fillRect(player.x-11,player.y-11,22,22);
+ ctx.fillStyle="#283fbc";
+ ctx.fillRect(player.x-8,player.y-2,16,12);
+ ctx.fillStyle="#fff";
+ ctx.fillRect(player.x-5,player.y-7,4,4);
+ ctx.fillRect(player.x+2,player.y-7,4,4);
+
+ if(messageTime>Date.now()){
+  ctx.fillStyle="white";
+  ctx.font="bold 18px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(messageText,W/2,30);
   ctx.textAlign="left";
  }
 }
-function loop(t){
- let dt=Math.min((t-(loop.last||t))/1000,.04);
- loop.last=t;update(dt);draw();requestAnimationFrame(loop);
+
+function update(){
+ if(!paused&&!gameOver){
+  player.x+=moveX*3;
+  player.y+=moveY*3;
+  player.x=Math.max(15,Math.min(W-15,player.x));
+  player.y=Math.max(15,Math.min(H-15,player.y));
+
+  // 自动攻击
+  attack();
+
+  // 怪物靠近勇者时攻击
+  enemies.forEach(e=>{
+   let dx=player.x-e.x,dy=player.y-e.y;
+   let d=Math.hypot(dx,dy);
+   if(d>27){
+    e.x+=dx/d*e.speed;
+    e.y+=dy/d*e.speed;
+   }else{
+    if(Math.random()<.025){
+     player.hp-=Math.max(1,e.atk-player.def);
+     if(player.hp<=0){
+      player.hp=0;gameOver=true;
+      message("勇者倒下了！刷新页面可读取存档");
+     }
+    }
+   }
+  });
+
+  // 自动拾取装备
+  drops=drops.filter(d=>{
+   if(Math.hypot(d.x-player.x,d.y-player.y)<25){
+    player.atk+=5;
+    inventory.push("强化装备（攻击+5）");
+    message("拾取装备！攻击力+5");
+    return false;
+   }
+   return true;
+  });
+ }
+ updateStats();
+ draw();
+ requestAnimationFrame(update);
 }
-requestAnimationFrame(loop);
-const joyEl=$("joy"),stick=$("stick");
+
+// 虚拟摇杆
+const stick=document.getElementById("stick");
+const knob=document.getElementById("knob");
 let active=false;
-function moveJoy(e){
- let r=joyEl.getBoundingClientRect();
+function joystick(e){
+ let r=stick.getBoundingClientRect();
  let x=e.clientX-(r.left+r.width/2);
  let y=e.clientY-(r.top+r.height/2);
- let d=Math.hypot(x,y),m=34;
- if(d>m){x=x/d*m;y=y/d*m}
- joy.x=x/m;joy.y=y/m;
- stick.style.left=(32+x)+"px";stick.style.top=(32+y)+"px";
+ let len=Math.hypot(x,y);
+ if(len>35){x=x/len*35;y=y/len*35;}
+ knob.style.left=(35+x)+"px";
+ knob.style.top=(35+y)+"px";
+ moveX=x/35;moveY=y/35;
 }
-joyEl.addEventListener("pointerdown",e=>{
- active=true;joyEl.setPointerCapture(e.pointerId);moveJoy(e);
+stick.addEventListener("pointerdown",e=>{
+ active=true;stick.setPointerCapture(e.pointerId);joystick(e);
 });
-joyEl.addEventListener("pointermove",e=>{if(active)moveJoy(e)});
-function stopJoy(){
- active=false;joy.x=joy.y=0;
- stick.style.left="32px";stick.style.top="32px";
+stick.addEventListener("pointermove",e=>{
+ if(active)joystick(e);
+});
+function stopStick(){
+ active=false;moveX=0;moveY=0;
+ knob.style.left="35px";knob.style.top="35px";
 }
-joyEl.addEventListener("pointerup",stopJoy);
-joyEl.addEventListener("pointercancel",stopJoy);
-$("skill").onclick=()=>{
- if(skill>0||paused||gameOver)return;
- skill=4;
- enemies.forEach(e=>{
-  if(Math.hypot(e.x-p.x,e.y-p.y)<125){
-   e.hp-=p.skillPower;
-   message(e.x,e.y-30,"⚡-"+p.skillPower,"#ffe66b");
-  }
- });
- effects.push({x:p.x,y:p.y,time:.2});
-};
-c.addEventListener("pointerdown",()=>{
- if(gameOver){
-  p={x:240,y:300,hp:100,max:100,atk:20,def:0,
-  lv:1,xp:0,need:50,gold:0,points:0,skillPower:55,
-  weapon:"木剑",attackSpeed:.55};
-  enemies=[];drops=[];effects=[];messages=[];
-  bossLevel=0;gameOver=false;
-  for(let i=0;i<6;i++)spawn();
-  refresh();
- }
+stick.addEventListener("pointerup",stopStick);
+stick.addEventListener("pointercancel",stopStick);
+
+// 电脑键盘也能移动
+document.addEventListener("keydown",e=>{
+ if(e.key==="ArrowUp"||e.key==="w")moveY=-1;
+ if(e.key==="ArrowDown"||e.key==="s")moveY=1;
+ if(e.key==="ArrowLeft"||e.key==="a")moveX=-1;
+ if(e.key==="ArrowRight"||e.key==="d")moveX=1;
 });
-window.addEventListener("keydown",e=>keys[e.key]=true);
-window.addEventListener("keyup",e=>keys[e.key]=false);
-refresh();
+document.addEventListener("keyup",e=>{
+ if(["ArrowUp","ArrowDown","w","s"].includes(e.key))moveY=0;
+ if(["ArrowLeft","ArrowRight","a","d"].includes(e.key))moveX=0;
+});
+
+loadGame();
+initEnemies();
+update();
+setInterval(saveGame,20000);
 </script>
 </body>
 </html>
